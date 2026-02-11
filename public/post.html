@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post — SideQuest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="site-title"><a href="/index.html">SideQuest</a></h1>
+      <nav class="nav-links">
+        <a href="/index.html">Feed</a>
+        <a href="/dashboard.html">Dashboard</a>
+        <span id="auth-links">
+          <a href="/login.html" id="login-link">Log in</a>
+          <a href="/register.html" id="register-link">Sign up</a>
+          <button type="button" id="logout-btn" style="display:none">Log out</button>
+        </span>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <div id="alert"></div>
+      <article class="single-post" id="post-container">
+        <p class="empty-state" id="loading">Loading…</p>
+      </article>
+      <section class="comments-section" id="comments-section" style="display: none;">
+        <h2 class="comments-title">Comments</h2>
+        <div id="comments-list"></div>
+        <div class="comment-form-wrap" id="comment-form-wrap" style="display: none;">
+          <form id="comment-form" class="comment-form">
+            <div class="form-group">
+              <label for="comment-content">Add a comment</label>
+              <textarea id="comment-content" name="content" rows="3" placeholder="Write your comment…" maxlength="2000"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Post comment</button>
+          </form>
+        </div>
+        <p class="comment-login-hint" id="comment-login-hint" style="display: none;">Log in to leave a comment.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">На всякий соло проект зная что они могли ничего не сделать</div>
+  </footer>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/posts.js"></script>
+  <script>
+    (function () {
+      if (isLoggedIn()) {
+        document.getElementById('login-link').style.display = 'none';
+        document.getElementById('register-link').style.display = 'none';
+        document.getElementById('logout-btn').style.display = 'inline-block';
+      }
+      document.getElementById('logout-btn').addEventListener('click', logout);
+
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      const container = document.getElementById('post-container');
+      const loading = document.getElementById('loading');
+      const alertEl = document.getElementById('alert');
+
+      function showAlert(msg) {
+        alertEl.innerHTML = msg ? '<div class="alert alert-error">' + escapeHtml(msg) + '</div>' : '';
+      }
+
+      if (!id) {
+        loading.textContent = 'No post specified.';
+        return;
+      }
+
+      function renderComments(comments, currentUserId) {
+        const listEl = document.getElementById('comments-list');
+        if (!comments.length) {
+          listEl.innerHTML = '<p class="comments-empty">No comments yet. Be the first!</p>';
+          return;
+        }
+        listEl.innerHTML = comments.map(function (c) {
+          const canDelete = currentUserId && c.author && (c.author._id === currentUserId || c.author.id === currentUserId);
+          const deleteBtn = canDelete
+            ? ' <button type="button" class="btn btn-ghost btn-sm comment-delete" data-comment-id="' + escapeHtml(c._id) + '" aria-label="Delete comment">Delete</button>'
+            : '';
+          return (
+            '<div class="comment" data-comment-id="' + escapeHtml(c._id) + '">' +
+              '<div class="comment-header">' +
+                (c.author ? '<span class="comment-author">' + escapeHtml(c.author.username) + '</span>' : '') +
+                '<time class="comment-date">' + formatDate(c.createdAt) + '</time>' +
+                deleteBtn +
+              '</div>' +
+              '<div class="comment-body">' + escapeHtml(c.content).replace(/\n/g, '<br>') + '</div>' +
+            '</div>'
+          );
+        }).join('');
+      }
+
+      function loadCommentsSection(postId) {
+        const section = document.getElementById('comments-section');
+        const formWrap = document.getElementById('comment-form-wrap');
+        const loginHint = document.getElementById('comment-login-hint');
+        section.style.display = 'block';
+        if (isLoggedIn()) {
+          formWrap.style.display = 'block';
+          loginHint.style.display = 'none';
+        } else {
+          formWrap.style.display = 'none';
+          loginHint.style.display = 'block';
+        }
+        loadComments(postId)
+          .then(function (comments) {
+            const user = getCurrentUser();
+            renderComments(comments, user ? user.id : null);
+          })
+          .catch(function () {
+            document.getElementById('comments-list').innerHTML = '<p class="comments-empty">Could not load comments.</p>';
+          });
+      }
+
+      loadPost(id)
+        .then(function (post) {
+          loading.remove();
+          const cover = post.coverImageUrl
+            ? '<img src="' + escapeHtml(post.coverImageUrl) + '" alt="" class="post-cover" />'
+            : '';
+          const tags = (post.tags || []).length
+            ? '<div class="post-tags">' + (post.tags || []).map(t => '<span class="tag">' + escapeHtml(t) + '</span>').join('') + '</div>'
+            : '';
+          container.innerHTML =
+            '<span class="post-category">' + categoryLabel(post.category) + '</span>' +
+            (post.status ? '<span class="status-badge status-' + post.status + '">' + post.status + '</span>' : '') +
+            '<h1 class="post-title">' + escapeHtml(post.title) + '</h1>' +
+            '<div class="post-meta">' +
+            (post.author ? '<span class="author">' + escapeHtml(post.author.username) + '</span>' : '') +
+            '<time>' + formatDate(post.updatedAt || post.createdAt) + '</time></div>' +
+            cover +
+            '<div class="post-content">' + escapeHtml(post.content).replace(/\n/g, '<br>') + '</div>' +
+            tags;
+          loadCommentsSection(id);
+        })
+        .catch(function (err) {
+          loading.remove();
+          showAlert(err.message || 'Post not found');
+        });
+
+      document.getElementById('comment-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!isLoggedIn()) return;
+        const contentEl = document.getElementById('comment-content');
+        const content = (contentEl.value || '').trim();
+        if (!content) return;
+        const btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        addComment(id, content)
+          .then(function (comment) {
+            contentEl.value = '';
+            loadComments(id).then(function (comments) {
+              const user = getCurrentUser();
+              renderComments(comments, user ? user.id : null);
+            });
+          })
+          .catch(function (err) {
+            showAlert(err.message || 'Failed to post comment');
+          })
+          .finally(function () {
+            btn.disabled = false;
+          });
+      });
+
+      document.getElementById('comments-list').addEventListener('click', function (e) {
+        const btn = e.target.closest('.comment-delete');
+        if (!btn || !id) return;
+        const commentId = btn.getAttribute('data-comment-id');
+        if (!commentId) return;
+        if (!confirm('Delete this comment?')) return;
+        deleteComment(id, commentId)
+          .then(function () {
+            loadComments(id).then(function (comments) {
+              const user = getCurrentUser();
+              renderComments(comments, user ? user.id : null);
+            });
+          })
+          .catch(function (err) {
+            showAlert(err.message || 'Failed to delete comment');
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

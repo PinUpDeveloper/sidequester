@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SideQuest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="site-title"><a href="/index.html">SideQuest</a></h1>
+      <nav class="nav-links">
+        <a href="/index.html">Feed</a>
+        <a href="/dashboard.html">Dashboard</a>
+        <span id="auth-links">
+          <a href="/login.html" id="login-link">Log in</a>
+          <a href="/register.html" id="register-link">Sign up</a>
+          <button type="button" id="logout-btn" style="display:none">Log out</button>
+        </span>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h2 class="page-title">Latest posts</h2>
+      <div class="filters">
+        <select id="filter-category" aria-label="Category">
+          <option value="">All categories</option>
+          <option value="tech">Tech</option>
+          <option value="travel">Travel</option>
+          <option value="food">Food</option>
+          <option value="lifestyle">Lifestyle</option>
+        </select>
+        <input type="search" id="filter-search" placeholder="Search by title..." aria-label="Search">
+        <button type="button" class="btn btn-ghost" id="filter-apply">Apply</button>
+      </div>
+      <div id="alert"></div>
+      <div class="post-grid" id="post-grid"></div>
+      <div class="empty-state" id="empty-state" style="display:none">No posts found.</div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">SideQuest © 2026</div>
+  </footer>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/posts.js"></script>
+  <script>
+    (function () {
+      if (isLoggedIn()) {
+        document.getElementById('login-link').style.display = 'none';
+        document.getElementById('register-link').style.display = 'none';
+        document.getElementById('logout-btn').style.display = 'inline-block';
+      }
+      document.getElementById('logout-btn').addEventListener('click', logout);
+
+      const grid = document.getElementById('post-grid');
+      const emptyState = document.getElementById('empty-state');
+      const alertEl = document.getElementById('alert');
+
+      function showAlert(msg, type) {
+        alertEl.innerHTML = msg ? '<div class="alert alert-' + (type || 'error') + '">' + msg + '</div>' : '';
+      }
+
+      async function render() {
+        const category = document.getElementById('filter-category').value;
+        const search = document.getElementById('filter-search').value.trim();
+        try {
+          const posts = await loadPosts({ category: category || undefined, search: search || undefined });
+          grid.innerHTML = posts.length ? posts.map(p => postCard(p, { showStatus: false })).join('') : '';
+          emptyState.style.display = posts.length ? 'none' : 'block';
+          showAlert('');
+        } catch (e) {
+          showAlert(e.message || 'Failed to load posts');
+          grid.innerHTML = '';
+          emptyState.style.display = 'block';
+        }
+      }
+
+      document.getElementById('filter-category').addEventListener('change', render);
+      document.getElementById('filter-apply').addEventListener('click', render);
+      document.getElementById('filter-search').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') render();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

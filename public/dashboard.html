@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — SideQuest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="site-title"><a href="/index.html">SideQuest</a></h1>
+      <nav class="nav-links">
+        <a href="/index.html">Feed</a>
+        <button type="button" id="logout-btn">Log out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h2 class="page-title">Dashboard</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Welcome, <strong id="user-name"></strong>.</p>
+      <div id="alert"></div>
+
+      <section class="dashboard-section">
+        <h2>Create post</h2>
+        <div class="dashboard-actions">
+          <button type="button" class="btn btn-primary" id="btn-new-post">New post</button>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <h2>My posts</h2>
+        <div class="filters">
+          <select id="filter-status" aria-label="Status">
+            <option value="">All</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+          </select>
+          <button type="button" class="btn btn-ghost" id="filter-apply">Apply</button>
+        </div>
+        <div class="post-grid" id="my-posts"></div>
+        <div class="empty-state" id="empty-my" style="display:none">No posts yet. Create one above.</div>
+      </section>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="post-modal" style="display:none">
+    <div class="modal">
+      <h3 id="modal-title">New post</h3>
+      <form id="post-form">
+        <input type="hidden" id="post-id">
+        <div class="form-group">
+          <label for="post-title">Title</label>
+          <input type="text" id="post-title" name="title" required maxlength="200">
+        </div>
+        <div class="form-group">
+          <label for="post-content">Content</label>
+          <textarea id="post-content" name="content" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="post-category">Category</label>
+          <select id="post-category" name="category" required>
+            <option value="tech">Tech</option>
+            <option value="travel">Travel</option>
+            <option value="food">Food</option>
+            <option value="lifestyle">Lifestyle</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="post-tags">Tags (comma-separated)</label>
+          <input type="text" id="post-tags" name="tags" placeholder="javascript, node, api">
+        </div>
+        <div class="form-group">
+          <label for="post-cover">Cover image URL</label>
+          <input type="url" id="post-cover" name="coverImageUrl" placeholder="https://...">
+        </div>
+        <div class="form-group" id="post-status-group">
+          <label for="post-status">Status</label>
+          <select id="post-status" name="status">
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="post-submit-btn">Save</button>
+          <button type="button" class="btn btn-ghost" id="post-cancel">Cancel</button>
+          <button type="button" class="btn btn-danger" id="post-delete-btn" style="display:none">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">SideQuest © 2026</div>
+  </footer>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/posts.js"></script>
+  <script>
+    (function () {
+      if (!requireAuth()) return;
+
+      document.getElementById('user-name').textContent = getCurrentUser()?.username || 'User';
+      document.getElementById('logout-btn').addEventListener('click', logout);
+
+      const alertEl = document.getElementById('alert');
+      const modal = document.getElementById('post-modal');
+      const form = document.getElementById('post-form');
+      const postId = document.getElementById('post-id');
+      const modalTitle = document.getElementById('modal-title');
+      const deleteBtn = document.getElementById('post-delete-btn');
+
+      function showAlert(msg, type) {
+        alertEl.innerHTML = msg ? '<div class="alert alert-' + (type || 'error') + '">' + msg + '</div>' : '';
+      }
+
+      function openModal(editPost) {
+        postId.value = editPost ? editPost._id : '';
+        modalTitle.textContent = editPost ? 'Edit post' : 'New post';
+        document.getElementById('post-title').value = editPost ? editPost.title : '';
+        document.getElementById('post-content').value = editPost ? editPost.content : '';
+        document.getElementById('post-category').value = editPost ? editPost.category : 'tech';
+        document.getElementById('post-tags').value = editPost && editPost.tags ? editPost.tags.join(', ') : '';
+        document.getElementById('post-cover').value = editPost && editPost.coverImageUrl ? editPost.coverImageUrl : '';
+        document.getElementById('post-status').value = editPost ? editPost.status : 'draft';
+        deleteBtn.style.display = editPost ? 'inline-block' : 'none';
+        modal.style.display = 'flex';
+      }
+
+      function closeModal() {
+        modal.style.display = 'none';
+      }
+
+      document.getElementById('btn-new-post').addEventListener('click', function () {
+        openModal(null);
+      });
+
+      document.getElementById('post-cancel').addEventListener('click', closeModal);
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeModal();
+      });
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        showAlert('');
+        const btn = document.getElementById('post-submit-btn');
+        btn.disabled = true;
+        const payload = {
+          title: document.getElementById('post-title').value.trim(),
+          content: document.getElementById('post-content').value.trim(),
+          category: document.getElementById('post-category').value,
+          tags: document.getElementById('post-tags').value.split(',').map(s => s.trim()).filter(Boolean),
+          coverImageUrl: document.getElementById('post-cover').value.trim() || undefined,
+          status: document.getElementById('post-status').value,
+        };
+        try {
+          if (postId.value) {
+            await api.put('/posts/' + postId.value, payload);
+            showAlert('Post updated.', 'success');
+          } else {
+            await api.post('/posts', payload);
+            showAlert('Post created.', 'success');
+          }
+          closeModal();
+          loadMyPosts();
+        } catch (err) {
+          showAlert(err.message || 'Failed to save');
+        }
+        btn.disabled = false;
+      });
+
+      document.getElementById('post-delete-btn').addEventListener('click', async function () {
+        if (!confirm('Delete this post?')) return;
+        try {
+          await api.delete('/posts/' + postId.value);
+          showAlert('Post deleted.', 'success');
+          closeModal();
+          loadMyPosts();
+        } catch (err) {
+          showAlert(err.message || 'Delete failed');
+        }
+      });
+
+      async function loadMyPosts() {
+        const status = document.getElementById('filter-status').value;
+        const grid = document.getElementById('my-posts');
+        const empty = document.getElementById('empty-my');
+        try {
+          let posts = await loadPosts({ mine: true });
+          if (status) posts = posts.filter(p => p.status === status);
+          grid.innerHTML = posts.length
+            ? posts.map(p => {
+                const card = postCard(p, { showAuthor: false, showStatus: true });
+                const wrap = document.createElement('div');
+                wrap.innerHTML = card;
+                const art = wrap.querySelector('.post-card');
+                const actions = document.createElement('div');
+                actions.className = 'post-actions';
+                actions.innerHTML = '<button type="button" class="btn btn-ghost edit-post" data-id="' + p._id + '">Edit</button>' +
+                  '<button type="button" class="btn btn-ghost toggle-status" data-id="' + p._id + '" data-status="' + (p.status === 'published' ? 'draft' : 'published') + '">' +
+                  (p.status === 'published' ? 'Set draft' : 'Publish') + '</button>';
+                art.querySelector('.post-card-body').appendChild(actions);
+                return wrap.innerHTML;
+              }).join('')
+            : '';
+          empty.style.display = posts.length ? 'none' : 'block';
+          grid.querySelectorAll('.edit-post').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const id = btn.getAttribute('data-id');
+              const res = await api.get('/posts/' + id);
+              openModal(res.data.post);
+            });
+          });
+          grid.querySelectorAll('.toggle-status').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const id = btn.getAttribute('data-id');
+              const newStatus = btn.getAttribute('data-status');
+              try {
+                await api.patch('/posts/' + id + '/status', { status: newStatus });
+                showAlert('Status updated.', 'success');
+                loadMyPosts();
+              } catch (err) {
+                showAlert(err.message || 'Failed to update status');
+              }
+            });
+          });
+        } catch (err) {
+          showAlert(err.message || 'Failed to load posts');
+          grid.innerHTML = '';
+          empty.style.display = 'block';
+        }
+      }
+
+      document.getElementById('filter-status').addEventListener('change', loadMyPosts);
+      document.getElementById('filter-apply').addEventListener('click', loadMyPosts);
+      loadMyPosts();
+    })();
+  </script>
+</body>
+</html>
