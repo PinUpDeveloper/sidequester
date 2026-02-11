@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log in — SideQuest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="site-title"><a href="/index.html">SideQuest</a></h1>
+      <nav class="nav-links">
+        <a href="/index.html">Feed</a>
+        <a href="/register.html">Sign up</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container auth-page">
+      <h1>Log in</h1>
+      <div id="alert"></div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="submit-btn">Log in</button>
+        </div>
+      </form>
+      <p>Don't have an account? <a href="/register.html">Sign up</a></p>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+    (function () {
+      if (redirectIfLoggedIn()) return;
+
+      const form = document.getElementById('login-form');
+      const alertEl = document.getElementById('alert');
+      const submitBtn = document.getElementById('submit-btn');
+
+      function showAlert(msg, type) {
+        alertEl.innerHTML = msg ? '<div class="alert alert-' + (type || 'error') + '">' + msg + '</div>' : '';
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        showAlert('');
+        submitBtn.disabled = true;
+        try {
+          const res = await api.post('/login', {
+            email: form.email.value.trim(),
+            password: form.password.value,
+          });
+          setAuth(res.data);
+          const params = new URLSearchParams(window.location.search);
+          window.location.href = params.get('redirect') || '/dashboard.html';
+        } catch (err) {
+          showAlert(err.message || 'Login failed');
+          submitBtn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
